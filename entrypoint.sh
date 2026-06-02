@@ -30,15 +30,22 @@ else
 fi
 echo "=================================================================="
 
-# 3.5 清洗并验证 Tunnel Token
+# 3.5 清洗 Token 并写入安全文件（绕过 supervisor 变量展开问题）
 if [ -n "$TUNNEL_TOKEN" ]; then
-    # 清除可能的空白字符和换行
     TUNNEL_TOKEN=$(echo "$TUNNEL_TOKEN" | tr -d '\r\n' | xargs)
-    export TUNNEL_TOKEN
-    echo "[INFO] Tunnel Token 已清洗 (长度: ${#TUNNEL_TOKEN})"
+    echo "$TUNNEL_TOKEN" > /app/tunnel-token
+    chmod 600 /app/tunnel-token
+    echo "[INFO] Tunnel Token 已写入 /app/tunnel-token (长度: ${#TUNNEL_TOKEN})"
 else
     echo "[ERROR] 未检测到 TUNNEL_TOKEN 环境变量！cloudflared 将无法连接！"
 fi
+
+# 3.6 创建 cloudflared 包装启动脚本
+cat > /app/run-cloudflared.sh << 'WRAPPER_EOF'
+#!/bin/sh
+exec /usr/local/bin/cloudflared tunnel run --token "$(cat /app/tunnel-token)"
+WRAPPER_EOF
+chmod +x /app/run-cloudflared.sh
 
 # 4. 拉起双进程保活管理器
 echo "[INFO] 正在唤醒 cloudflared 隧道与 sing-box 服务..."
